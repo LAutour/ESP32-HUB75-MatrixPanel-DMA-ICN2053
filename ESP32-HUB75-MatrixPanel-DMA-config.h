@@ -137,6 +137,10 @@ enum{ICN2053_DMA_ROW_BUFF_CNT = DMA_ROW_BUFF_CNT};
 #define HSYNC_PIN 18
 #endif
 #endif
+#ifndef DECODER_595
+#define DECODER_595 false
+#endif
+
 
 // Panel Upper half RGB (numbering according to order in DMA gpio_bus configuration)
 enum{
@@ -174,6 +178,10 @@ enum{
   BITMASK_RGB2  = BIT_R2 + BIT_G2 + BIT_B2,    //битовая маска цвета нижних строк
   BITMASK_RGB12 = BITMASK_RGB1 + BITMASK_RGB2, //битовая маска цвета
 };
+
+enum{BIT_SDI =  BIT_C};
+enum{BIT_DTK = BIT_A};
+enum{BIT_RCK = BIT_B};
 
 extern const hub75_cfg_t hub75_cfg_default;
 
