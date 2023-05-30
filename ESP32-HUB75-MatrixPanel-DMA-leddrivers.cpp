@@ -131,12 +131,14 @@ int setLatRowBuffer(ESP32_I2S_DMA_STORAGE_TYPE* buffer, int offset, int subrow_c
 int icn2053setOEaddrBuffer(ESP32_I2S_DMA_STORAGE_TYPE* buffer, int offset, uint8_t row_cnt, size_t buffer_len, int frame_offset, bool decoder_595 = false)
 {
   //return 0;
+  enum {DELAY_CLK_595 = 10};
   ESP32_I2S_DMA_STORAGE_TYPE data;
   uint8_t addr;
   int row_offset;
   int oe_cnt;
   ESP32_I2S_DMA_STORAGE_TYPE data595 = 0;
   ESP32_I2S_DMA_STORAGE_TYPE clock595 = 0;
+  int clock595_cnt = 0; //длительность клока в тактах
   //вычисление начальных значений счетчиков
   if (frame_offset >= (ICN2053_ROW_OE_LEN<<ROW_ADDR_BITS)) frame_offset = 0;
   addr = frame_offset/ICN2053_ROW_OE_LEN;
@@ -145,10 +147,11 @@ int icn2053setOEaddrBuffer(ESP32_I2S_DMA_STORAGE_TYPE* buffer, int offset, uint8
   else oe_cnt = (ICN2053_ROW_OE_CNT - (row_offset>>1));
 
   data = getAddrBits(addr);
-  if (row_offset == 0) 
+  if (row_offset < DELAY_CLK_595) 
   {
     clock595 = BIT_DTK;
-    if (addr == 0) data595 = BIT_SDI;
+    clock595_cnt = DELAY_CLK_595 - row_offset;
+    if ((row_offset==0)&&(addr == 0)) data595 = BIT_SDI;
   }
  
   while (offset < buffer_len)
@@ -166,21 +169,24 @@ int icn2053setOEaddrBuffer(ESP32_I2S_DMA_STORAGE_TYPE* buffer, int offset, uint8
       row_offset = 0;
       oe_cnt = ICN2053_ROW_OE_CNT;
       clock595 = BIT_DTK;
+      clock595_cnt = DELAY_CLK_595;
     }
 
     if(decoder_595)
     {
-      buffer[offset^1] = data595;
+      if ((clock595_cnt > 0)&&(clock595_cnt < DELAY_CLK_595)) buffer[offset^1] = clock595;
+      else buffer[offset^1] = data595; 
       row_offset++;
       frame_offset++;
       offset++;
       if (offset == buffer_len) break;
+      if (clock595_cnt <= 0) clock595 = 0;
+      else clock595_cnt--;      
       if (oe_cnt > 0) 
       {
         buffer[offset^1] = clock595 | data595 | BIT_OE;
         oe_cnt--;
-      }else buffer[offset^1] = 0;
-      clock595 = 0;
+      }else buffer[offset^1] = clock595;
       data595 = 0;
     }else
     {
