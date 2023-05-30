@@ -25,6 +25,7 @@ enum{
   DOUBLE_BUFF_ON = true
 };
 
+
 enum {
   SHIFTREG = 0, 
   MBI5124,
@@ -90,6 +91,7 @@ typedef struct  HUB75_DMA_CFG_S{
    //bool chain_top_down;
    //bool s_chain_party;
   //uint8_t latch_blanking;
+  bool decoder_595;
 }hub75_cfg_t; // end of structure HUB75_I2S_CFG
 
 // Definitions below should NOT be ever changed without rewriting library logic
