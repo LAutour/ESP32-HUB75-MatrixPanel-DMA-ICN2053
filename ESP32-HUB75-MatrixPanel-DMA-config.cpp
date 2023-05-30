@@ -33,5 +33,6 @@ const hub75_cfg_t hub75_cfg_default= {
   .color_depth = PIXEL_COLOR_DEPTH, 
   .double_buff = DOUBLE_BUFF,
   .double_dma_buff = DOUBLE_DMA_BUFF,
+  .decoder_595 = DECODER_595,
   //  .latch_blanking = LAT_BLANKING,
 };
