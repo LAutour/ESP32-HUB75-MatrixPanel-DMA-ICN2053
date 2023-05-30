@@ -128,13 +128,15 @@ int setLatRowBuffer(ESP32_I2S_DMA_STORAGE_TYPE* buffer, int offset, int subrow_c
 
 //заполнение буфера регенерации строк в буфере
 //возвращает смещения начала кадра (для стыковки буферов разной длины к суффиксу)
-int icn2053setOEaddrBuffer(ESP32_I2S_DMA_STORAGE_TYPE* buffer, int offset, uint8_t row_cnt, size_t buffer_len, int frame_offset)
+int icn2053setOEaddrBuffer(ESP32_I2S_DMA_STORAGE_TYPE* buffer, int offset, uint8_t row_cnt, size_t buffer_len, int frame_offset, bool decoder_595 = false)
 {
   //return 0;
   ESP32_I2S_DMA_STORAGE_TYPE data;
   uint8_t addr;
   int row_offset;
   int oe_cnt;
+  ESP32_I2S_DMA_STORAGE_TYPE data595 = 0;
+  ESP32_I2S_DMA_STORAGE_TYPE clock595 = 0;
   //вычисление начальных значений счетчиков
   if (frame_offset >= (ICN2053_ROW_OE_LEN<<ROW_ADDR_BITS)) frame_offset = 0;
   addr = frame_offset/ICN2053_ROW_OE_LEN;
@@ -142,7 +144,13 @@ int icn2053setOEaddrBuffer(ESP32_I2S_DMA_STORAGE_TYPE* buffer, int offset, uint8
   if (row_offset > ICN2053_ROW_OE_CNT*2) oe_cnt = 0;
   else oe_cnt = (ICN2053_ROW_OE_CNT - (row_offset>>1));
 
-  data = getAddrBits(addr);  
+  data = getAddrBits(addr);
+  if (row_offset == 0) 
+  {
+    clock595 = BIT_DTK;
+    if (addr == 0) data595 = BIT_SDI;
+  }
+ 
   while (offset < buffer_len)
   {
     if(row_offset == ICN2053_ROW_OE_LEN)
@@ -152,22 +160,42 @@ int icn2053setOEaddrBuffer(ESP32_I2S_DMA_STORAGE_TYPE* buffer, int offset, uint8
       {
         addr = 0;
         frame_offset = 0;
+        data595 = BIT_SDI;       
       }
       data = getAddrBits(addr);
       row_offset = 0;
       oe_cnt = ICN2053_ROW_OE_CNT;
+      clock595 = BIT_DTK;
     }
-    if (oe_cnt > 0) 
+
+    if(decoder_595)
     {
-      buffer[offset^1] = data | BIT_OE;
-      oe_cnt--;
+      buffer[offset^1] = data595;
+      row_offset++;
+      frame_offset++;
+      offset++;
+      if (offset == buffer_len) break;
+      if (oe_cnt > 0) 
+      {
+        buffer[offset^1] = clock595 | data595 | BIT_OE;
+        oe_cnt--;
+      }else buffer[offset^1] = 0;
+      clock595 = 0;
+      data595 = 0;
+    }else
+    {
+      if (oe_cnt > 0) 
+      {
+        buffer[offset^1] = data | BIT_OE;
+        oe_cnt--;
+      }else buffer[offset^1] = data;
+      row_offset++;
+      frame_offset++;
+      offset++;
+      if (offset == buffer_len) break;
+      buffer[offset^1] = data;
     }
-    else buffer[offset^1] = data;
-    row_offset++;
-    frame_offset++;
-    offset++;
-    if (offset == buffer_len) break;
-    buffer[offset^1] = data;
+    
     row_offset++;
     frame_offset++;
     offset++;
@@ -234,7 +262,7 @@ void MatrixPanel_DMA::icn2053initBuffers()
       #ifdef SERIAL_DEBUG  
       Serial.print(row); Serial.print(" ");
       #endif     
-      frame_offset_data = icn2053setOEaddrBuffer(dma_buff.rowBits[row_offset + row], 0, rows_per_frame, dma_buff.row_data_len, frame_offset_data);
+      frame_offset_data = icn2053setOEaddrBuffer(dma_buff.rowBits[row_offset + row], 0, rows_per_frame, dma_buff.row_data_len, frame_offset_data, m_cfg.decoder_595);
       setLatRowBuffer(dma_buff.rowBits[row_offset + row],0,DRIVER_BITS,pixels_per_row);
     }
     dmadesc_data[buf_id][desc_data_cnt-1].eof = true;
@@ -255,7 +283,7 @@ void MatrixPanel_DMA::icn2053initBuffers()
 
   //индекс смещения относительно начала кадра
   int frame_offset_prefix = icn2053setOEaddrBuffer(dma_buff.rowBits[offset_prefix], FRAME_ADD_LEN + ICN2053_VSYNC_LEN,
-                                                   rows_per_frame,dma_buff.frame_prefix_len,0);
+                                                   rows_per_frame,dma_buff.frame_prefix_len,0, m_cfg.decoder_595);
 
   frame_offset_prefix %= dma_buff.frame_suffix_len;
   frame_offset_prefix *= SIZE_DMA_TYPE;
@@ -271,7 +299,7 @@ void MatrixPanel_DMA::icn2053initBuffers()
   Serial.println("DMA buffers init: oe_addr suffix buffers");
   #endif     
   //заполняем буфер регененерации строк 
-  icn2053setOEaddrBuffer(dma_buff.rowBits[offset_suffix], 0, rows_per_frame, dma_buff.frame_suffix_len, 0);
+  icn2053setOEaddrBuffer(dma_buff.rowBits[offset_suffix], 0, rows_per_frame, dma_buff.frame_suffix_len, 0, m_cfg.decoder_595);
 
   //int desk_idx_next;
   //заполняем регенерацию строк в буфере суффиксов
