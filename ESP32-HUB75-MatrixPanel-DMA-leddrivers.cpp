@@ -128,17 +128,18 @@ int setLatRowBuffer(ESP32_I2S_DMA_STORAGE_TYPE* buffer, int offset, int subrow_c
 
 //заполнение буфера регенерации строк в буфере
 //возвращает смещения начала кадра (для стыковки буферов разной длины к суффиксу)
-int icn2053setOEaddrBuffer(ESP32_I2S_DMA_STORAGE_TYPE* buffer, int offset, uint8_t row_cnt, size_t buffer_len, int frame_offset, bool decoder_595 = false)
+int icn2053setOEaddrBuffer(ESP32_I2S_DMA_STORAGE_TYPE* buffer, int offset, uint8_t row_cnt, size_t buffer_len, int frame_offset, bool decoder_INT595 = false)
 {
   //return 0;
-  enum {DELAY_CLK_595 = 10};
+  enum {DELAY_INT595_START = 2};
+  enum {DELAY_INT595_LEN = ICN2053_ROW_OE_ADD_LEN/2-DELAY_INT595_START};
+  enum {DELAY_INT595_CLK = ICN2053_ROW_OE_ADD_LEN/4-DELAY_INT595_START};
   ESP32_I2S_DMA_STORAGE_TYPE data;
+  ESP32_I2S_DMA_STORAGE_TYPE start_INT595 = 0;
   uint8_t addr;
   int row_offset;
   int oe_cnt;
-  ESP32_I2S_DMA_STORAGE_TYPE data595 = 0;
-  ESP32_I2S_DMA_STORAGE_TYPE clock595 = 0;
-  int clock595_cnt = 0; //длительность клока в тактах
+  int clk_INT595_cnt = 255; //длительность клока в тактах
   //вычисление начальных значений счетчиков
   if (frame_offset >= (ICN2053_ROW_OE_LEN<<ROW_ADDR_BITS)) frame_offset = 0;
   addr = frame_offset/ICN2053_ROW_OE_LEN;
@@ -146,13 +147,8 @@ int icn2053setOEaddrBuffer(ESP32_I2S_DMA_STORAGE_TYPE* buffer, int offset, uint8
   if (row_offset > ICN2053_ROW_OE_CNT*2) oe_cnt = 0;
   else oe_cnt = (ICN2053_ROW_OE_CNT - (row_offset>>1));
 
-  data = getAddrBits(addr);
-  if (row_offset < DELAY_CLK_595) 
-  {
-    clock595 = BIT_DTK;
-    clock595_cnt = DELAY_CLK_595 - row_offset;
-    if ((row_offset==0)&&(addr == 0)) data595 = BIT_SDI;
-  }
+  if(!decoder_INT595) data = getAddrBits(addr);
+  else data = 0;
  
   while (offset < buffer_len)
   {
@@ -163,31 +159,52 @@ int icn2053setOEaddrBuffer(ESP32_I2S_DMA_STORAGE_TYPE* buffer, int offset, uint8
       {
         addr = 0;
         frame_offset = 0;
-        data595 = BIT_SDI;       
+      }else if ((addr == row_cnt - 1)||(addr == row_cnt/2 - 1)) //два канала: R1G1B1 и R2G2B2
+      {
+        start_INT595 = BIT_SDI;
       }
-      data = getAddrBits(addr);
+      if(!decoder_INT595) data = getAddrBits(addr);
+      else data = 0;
       row_offset = 0;
       oe_cnt = ICN2053_ROW_OE_CNT;
-      clock595 = BIT_DTK;
-      clock595_cnt = DELAY_CLK_595;
+      data = 0;
     }
 
-    if(decoder_595)
-    {
-      if ((clock595_cnt > 0)&&(clock595_cnt < DELAY_CLK_595)) buffer[offset^1] = clock595;
-      else buffer[offset^1] = data595; 
+    if(decoder_INT595)
+    {     
+      if (oe_cnt > 0) 
+      {
+        buffer[offset^1] = BIT_OE;
+        oe_cnt--;
+        if (oe_cnt == 0)
+        {
+          clk_INT595_cnt = -DELAY_INT595_START;
+        }
+      }else 
+      {
+        if (clk_INT595_cnt <= DELAY_INT595_LEN)
+        {
+          clk_INT595_cnt++; 
+          if(clk_INT595_cnt >= 0)    
+          {
+            if (clk_INT595_cnt == DELAY_INT595_LEN)
+            {
+              start_INT595 = 0;
+              data = 0;
+            }else
+            {       
+              data = start_INT595 | BIT_RCK;
+              if (clk_INT595_cnt >= DELAY_INT595_CLK) data |= BIT_DTK;                     
+            }
+          }          
+        }         
+        buffer[offset^1] = data;      
+      }
       row_offset++;
       frame_offset++;
       offset++;
       if (offset == buffer_len) break;
-      if (clock595_cnt <= 0) clock595 = 0;
-      else clock595_cnt--;      
-      if (oe_cnt > 0) 
-      {
-        buffer[offset^1] = clock595 | data595 | BIT_OE;
-        oe_cnt--;
-      }else buffer[offset^1] = clock595;
-      data595 = 0;
+      buffer[offset^1] = data;      
     }else
     {
       if (oe_cnt > 0) 
@@ -268,7 +285,7 @@ void MatrixPanel_DMA::icn2053initBuffers()
       #ifdef SERIAL_DEBUG  
       Serial.print(row); Serial.print(" ");
       #endif     
-      frame_offset_data = icn2053setOEaddrBuffer(dma_buff.rowBits[row_offset + row], 0, rows_per_frame, dma_buff.row_data_len, frame_offset_data, m_cfg.decoder_595);
+      frame_offset_data = icn2053setOEaddrBuffer(dma_buff.rowBits[row_offset + row], 0, rows_per_frame, dma_buff.row_data_len, frame_offset_data, m_cfg.decoder_INT595);
       setLatRowBuffer(dma_buff.rowBits[row_offset + row],0,DRIVER_BITS,pixels_per_row);
     }
     dmadesc_data[buf_id][desc_data_cnt-1].eof = true;
@@ -289,7 +306,7 @@ void MatrixPanel_DMA::icn2053initBuffers()
 
   //индекс смещения относительно начала кадра
   int frame_offset_prefix = icn2053setOEaddrBuffer(dma_buff.rowBits[offset_prefix], FRAME_ADD_LEN + ICN2053_VSYNC_LEN,
-                                                   rows_per_frame,dma_buff.frame_prefix_len,0, m_cfg.decoder_595);
+                                                   rows_per_frame,dma_buff.frame_prefix_len,0, m_cfg.decoder_INT595);
 
   frame_offset_prefix %= dma_buff.frame_suffix_len;
   frame_offset_prefix *= SIZE_DMA_TYPE;
@@ -305,7 +322,7 @@ void MatrixPanel_DMA::icn2053initBuffers()
   Serial.println("DMA buffers init: oe_addr suffix buffers");
   #endif     
   //заполняем буфер регененерации строк 
-  icn2053setOEaddrBuffer(dma_buff.rowBits[offset_suffix], 0, rows_per_frame, dma_buff.frame_suffix_len, 0, m_cfg.decoder_595);
+  icn2053setOEaddrBuffer(dma_buff.rowBits[offset_suffix], 0, rows_per_frame, dma_buff.frame_suffix_len, 0, m_cfg.decoder_INT595);
 
   //int desk_idx_next;
   //заполняем регенерацию строк в буфере суффиксов
