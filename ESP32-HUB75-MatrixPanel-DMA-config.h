@@ -137,8 +137,8 @@ enum{ICN2053_DMA_ROW_BUFF_CNT = DMA_ROW_BUFF_CNT};
 #define HSYNC_PIN 18
 #endif
 #endif
-#ifndef DECODER_595
-#define DECODER_595 false
+#ifndef DECODER_INT595
+#define DECODER_INT595 false
 #endif
 
 
@@ -179,6 +179,7 @@ enum{
   BITMASK_RGB12 = BITMASK_RGB1 + BITMASK_RGB2, //битовая маска цвета
 };
 
+//For control card, SDI is the C of    3-8 decoder, DCK is the A of    3-8 decoder, RCK    is the B of    3-8 decoder 
 enum{BIT_SDI =  BIT_C};
 enum{BIT_DTK = BIT_A};
 enum{BIT_RCK = BIT_B};
