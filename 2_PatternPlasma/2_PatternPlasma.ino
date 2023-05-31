@@ -84,7 +84,7 @@ void setup() {
     .color_depth = COLORx16,//PIXEL_COLOR_DEPTH
     .double_buff = DOUBLE_BUFF_ON,
     .double_dma_buff = DOUBLE_BUFF_ON,
-    .decoder_595 = false,
+    .decoder_INT595 = false,
   };
 
   // OK, now we can create our matrix object
