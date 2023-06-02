@@ -159,7 +159,7 @@ int icn2053setOEaddrBuffer(ESP32_I2S_DMA_STORAGE_TYPE* buffer, int offset, uint8
       {
         addr = 0;
         frame_offset = 0;
-      }else if ((addr == row_cnt - 1)||(addr == row_cnt/2 - 1)) //два канала: R1G1B1 и R2G2B2
+      }else if (addr == row_cnt - 1) //два канала: R1G1B1 и R2G2B2
       {
         start_INT595 = BIT_SDI;
       }
