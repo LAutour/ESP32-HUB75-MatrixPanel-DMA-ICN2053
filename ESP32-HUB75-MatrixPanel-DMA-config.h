@@ -4,7 +4,9 @@
 #include "ESP32-HUB75-MatrixPanel-DMA-types.h"
 
 //сообщения отладки по UART
-#define SERIAL_DEBUG
+#ifndef DISABLE_SERIAL_DEBUG
+  #define SERIAL_DEBUG
+#endif  
 //прроцедуры инциализации регистров драйверов чрезе прямой доступ к выводам интерфейса 
 //оставлено на всякий случай
 //#define DIRECT_DRIVER_INIT
