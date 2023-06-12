@@ -2,7 +2,9 @@
 #include "ESP32-HUB75-MatrixPanel-DMA-icn2053.h"
 #include "ESP32-HUB75-MatrixPanel-DMA-leddrivers.h"
 
-#define SERIAL_DEBUG
+#ifndef DISABLE_SERIAL_DEBUG
+  #define SERIAL_DEBUG
+#endif 
 
 #define offset_prefix  dma_buff.all_row_data_cnt
 #define offset_suffix  (dma_buff.all_row_data_cnt + dma_buff.frame_prefix_cnt)
@@ -874,8 +876,10 @@ bool MatrixPanel_DMA::begin()
   setRotation(0);
   setMirrorX(false);
   setMirrorY(false);
+  #ifdef SERIAL_DEBUG  
   Serial.println(mirror_x);
   Serial.println(mirror_y);
+  #endif
 
   /* As DMA buffers are dynamically allocated, we must allocated in begin()
   * Ref: https://github.com/espressif/arduino-esp32/issues/831
