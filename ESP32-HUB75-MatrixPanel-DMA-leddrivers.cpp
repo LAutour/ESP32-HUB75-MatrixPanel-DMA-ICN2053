@@ -167,7 +167,6 @@ int icn2053setOEaddrBuffer(ESP32_I2S_DMA_STORAGE_TYPE* buffer, int offset, uint8
       else data = 0;
       row_offset = 0;
       oe_cnt = ICN2053_ROW_OE_CNT;
-      data = 0;
     }
 
     if(decoder_INT595)
